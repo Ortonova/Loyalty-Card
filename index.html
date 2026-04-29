@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ortonova Loyalty Card</title>
+    <style>
+        :root {
+            --bg-dark: #000000; /* Negro total */
+            --card-bg: #111111; /* Negro ligeramente más claro para la tarjeta */
+            --accent: #d4af37;  /* Dorado para el premio */
+            --text-light: #ffffff;
+            --border: #333333;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* El Botón de Ayuda (?) */
+        .help-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 35px;
+            height: 35px;
+            background: #222;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        /* Diseño de la Tarjeta */
+        .card-container {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 380px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .logo-placeholder {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+
+        /* Cuadrícula de Sellos */
+        .stamps-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stamp-slot {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background: #000;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            color: #444;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* ESTADO ACTIVO: Aparece el Diente */
+        .stamp-slot.active {
+            border-color: var(--accent);
+            background: #1a1a1a;
+            font-size: 24px; /* Tamaño del emoji */
+            transform: scale(1.1);
+        }
+
+        /* Banner de Recompensa */
+        .reward-banner {
+            background: var(--accent);
+            color: black;
+            padding: 20px;
+            border-radius: 15px;
+            font-weight: bold;
+            display: none;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .reset-btn {
+            background: black;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-content {
+            background: #111;
+            border: 1px solid #333;
+            padding: 25px;
+            border-radius: 20px;
+            color: white;
+        }
+        .show { display: flex; }
+
+        .card-header {
+            width: 100%;
+            padding: 20px 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .logo-img {
+            max-width: 200px; /* Controla qué tan grande se ve el logo */
+            height: auto;     /* Mantiene la proporción */
+            display: block;
+        }
+    </style>
+
+</head>
+<body>
+
+    <div class="help-btn" onclick="toggleModal()">?</div>
+
+    <div class="card-container">
+        <div class="card-header">
+            <img src="logo.png " alt="Ortonova Dental" class="logo-img">
+        </div>
+
+        <div class="stamps-grid" id="stampsGrid"></div>
+
+        <div id="rewardBanner" class="reward-banner">
+            🏆 ¡TARJETA LLENA!<br>
+            LIMPIEZA GRATIS
+            <button class="reset-btn" onclick="canjearPremio()">CANJEAR Y REINICIAR</button>
+        </div>
+    </div>
+
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <h3>Instrucciones</h3>
+            <ul style="text-align: left; font-size: 14px; line-height: 1.6;">
+                <li><b>Guárdala:</b> Usa "Añadir a pantalla de inicio" para no perderla.</li>
+                <li><b>Sellar:</b> Escanea el código QR en caja.</li>
+                <li><b>Importante:</b> No borres el historial ni uses modo incógnito.</li>
+            </ul>
+            <button class="reset-btn" onclick="toggleModal()">ENTENDIDO</button>
+        </div>
+    </div>
+
+    <script>
+        const totalSellos = 10;
+        let sellosActuales = parseInt(localStorage.getItem('ortonova_loyalty_v2')) || 0;
+
+        // Lógica de sellado por URL (?sellar=si)
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('sellar')) {
+            if (sellosActuales < totalSellos) {
+                sellosActuales++;
+                localStorage.setItem('ortonova_loyalty_v2', sellosActuales);
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        function render() {
+            const grid = document.getElementById('stampsGrid');
+            grid.innerHTML = '';
+            
+            for (let i = 1; i <= totalSellos; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'stamp-slot' + (i <= sellosActuales ? ' active' : '');
+                // Si está activo pone el diente, si no, el número
+                slot.innerHTML = i <= sellosActuales ? '🦷' : `<span>${i}</span>`;
+                grid.appendChild(slot);
+            }
+
+            if (sellosActuales >= totalSellos) {
+                document.getElementById('rewardBanner').style.display = 'block';
+            } else {
+                document.getElementById('rewardBanner').style.display = 'none';
+            }
+        }
+
+        function canjearPremio() {
+            if (confirm("¿Confirmas que se aplicó el descuento? La tarjeta volverá a cero.")) {
+                sellosActuales = 0;
+                localStorage.setItem('ortonova_loyalty_v2', 0);
+                render();
+            }
+        }
+
+        function toggleModal() {
+            document.getElementById('helpModal').classList.toggle('show');
+        }
+
+        render();
+    </script>
+</body>
+</html>
